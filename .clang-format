@@ -1,0 +1,8 @@
+BasedOnStyle: Chromium
+IndentWidth: 2
+PointerAlignment: Left
+IncludeBlocks: Merge
+AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
