@@ -45,6 +45,11 @@ stella_object *nat_to_stella_object(int n) {
     result = x;
   }
   gc_pop_root((void*)&result);
+#ifdef STELLA_GC_DEBUG
+  printf("after nat_to_stella_object:\n");
+  print_gc_state();
+#endif
+
   return result;
 }
 

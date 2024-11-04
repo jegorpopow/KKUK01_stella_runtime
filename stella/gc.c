@@ -200,7 +200,7 @@ static size_t chase(void* raw_object) {
   size_t memory_copied = 0;
 
   while (object != NULL) {
-    gc_debug_log("chansing %p\n", object);
+    gc_debug_log("chasing %p\n", object);
     size_t object_size = stella_object_size(object);
     size_t field_count =
         STELLA_OBJECT_HEADER_FIELD_COUNT(object->object_header);
@@ -223,6 +223,7 @@ static size_t chase(void* raw_object) {
     }
 
     object->object_fields[0] = forwarded_object;
+    gc_debug_log("chased %p ---> %p\n", object, object->object_fields[0]);
     object = next_object;
   }
 
@@ -237,10 +238,17 @@ static size_t chase(void* raw_object) {
 static void* forward(void* raw_object, size_t* memory_copied) {
   *memory_copied = 0;
 
+  gc_debug_log("forwarding %p\n", raw_object);
+
   if (belongs_to(raw_object, from_space)) {
+    gc_debug_log("forwarding from from-space\n");
     stella_object* object = (stella_object*)raw_object;
     if (!belongs_to(object->object_fields[0], to_space)) {
+      gc_debug_log("forwarding non-forwarded\n");
       *memory_copied = chase(object);
+      gc_debug_log("forwarded %p ---> %p\n", object, object->object_fields[0]);
+    } else {
+      gc_debug_log("%p is already forwarded to %p\n", object, object->object_fields[0]);
     }
     return object->object_fields[0];
   } else {
@@ -254,6 +262,11 @@ static void* forward(void* raw_object, size_t* memory_copied) {
   Prerequirement: scan == next (all data already forwarded)
 */
 static size_t flip(void) {
+  gc_debug_log("flipping\n"); 
+#ifdef STELLA_GC_DEBUG
+  print_gc_roots();
+#endif  
+
   void* t = to_space;
   to_space = from_space;
   from_space = t;
@@ -271,6 +284,11 @@ static size_t flip(void) {
     *root = forward(*root, &memory_copied);
     total_memory_copied += memory_copied;
   }
+
+gc_debug_log("after flip\n"); 
+#ifdef STELLA_GC_DEBUG 
+  print_gc_state();
+#endif  
 
   return total_memory_copied;
 }
@@ -350,7 +368,7 @@ static void print_object(stella_object* object, const char* prefix) {
 
   printf("%s%p: STELLA OBJECT of %d fields WITH tag %s of value ", prefix, object,
          field_count, stella_tag_to_string(tag));
-  print_stella_object(object);
+  // print_stella_object(object);
   printf("\n");
 
   for (int i = 0; i < field_count; i++) {
@@ -410,9 +428,11 @@ void* gc_alloc(size_t size_in_bytes) {
   /** Move at least one word of data from from-space to to-space on every
    * allocation */
   if (scan != next) {
+    gc_debug_log("coping memory during allocation\n");
     size_t memory_copied = 0;
-    while (memory_copied == 0 || diff_void(next, scan) > 0) {
+    while (memory_copied == 0 && diff_void(next, scan) > 0) {
       stella_object* object = (stella_object*)scan;
+      gc_debug_log("processing %p, next = %p, scan = %p\n", object, next, scan);
       memory_copied = deep_forward(object);
       scan = advance_void(scan, stella_object_size(object));
     }
@@ -504,7 +524,7 @@ void gc_read_barrier(void* raw_object, int field_index) {
 
   if (belongs_to(object->object_fields[field_index], from_space)) {
     size_t memory_copied = 0;
-    forward(object->object_fields[field_index], &memory_copied);
+    object->object_fields[field_index] = forward(object->object_fields[field_index], &memory_copied);
   }
 
   total_reads += 1;

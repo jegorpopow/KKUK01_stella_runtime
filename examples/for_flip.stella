@@ -1,12 +1,13 @@
 language core;
 
-extend with #natural_literals;
+extend with #natural-literals, 
+            #let-bindings,
+            #multiparameter-functions;
 
-fn flip_const(n : Nat, m : Nat) -> Nat {
-    return m;
+fn produce_garbage(n : Nat) -> Nat {
+    return let garbage = 5 in n;
 }
 
 fn main(n : Nat) -> Nat {
-    return succ(succ(n));
+    return produce_garbage(produce_garbage(produce_garbage(produce_garbage(n))));
 }
-
