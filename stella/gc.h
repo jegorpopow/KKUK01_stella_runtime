@@ -58,4 +58,11 @@ void print_gc_state(void);
  */
 void print_gc_roots();
 
+/**
+  Collecting all alive objects from from-space in to-space
+  Returns a number of copied bytes
+*/
+
+size_t gc_force_copy_all(void);
+
 #endif

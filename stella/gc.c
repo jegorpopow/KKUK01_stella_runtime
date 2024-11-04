@@ -124,6 +124,9 @@ int total_allocated_objects = 0;
 int max_allocated_bytes = 0;
 int max_allocated_objects = 0;
 
+int current_allocated_bytes = 0;
+int current_allocated_objects = 0;
+
 int total_reads = 0;
 int total_writes = 0;
 
@@ -184,6 +187,15 @@ stella_object* shallow_copy(stella_object* object, size_t* memory_copied) {
   stella_object* forwarded_object = (stella_object*)next;
   advance_next_by(object_size);
 
+  current_allocated_objects += 1;
+  current_allocated_bytes += object_size;
+  max_allocated_bytes = max_allocated_bytes > current_allocated_bytes
+                            ? max_allocated_bytes
+                            : current_allocated_bytes;
+  max_allocated_objects = max_allocated_objects > current_allocated_objects
+                              ? max_allocated_objects
+                              : current_allocated_objects;
+
   memcpy(forwarded_object, object, object_size);
   memory_copied += object_size / WORD_SIZE;
   object->object_fields[0] = forwarded_object;
@@ -211,6 +223,15 @@ static size_t chase(void* raw_object) {
 
     memcpy(forwarded_object, object, object_size);
     memory_copied += object_size / WORD_SIZE;
+
+    current_allocated_objects += 1;
+    current_allocated_bytes += object_size;
+    max_allocated_bytes = max_allocated_bytes > current_allocated_bytes
+                              ? max_allocated_bytes
+                              : current_allocated_bytes;
+    max_allocated_objects = max_allocated_objects > current_allocated_objects
+                                ? max_allocated_objects
+                                : current_allocated_objects;
 
     stella_object* next_object = NULL;
     for (size_t i = 0; i < field_count; i++) {
@@ -248,7 +269,8 @@ static void* forward(void* raw_object, size_t* memory_copied) {
       *memory_copied = chase(object);
       gc_debug_log("forwarded %p ---> %p\n", object, object->object_fields[0]);
     } else {
-      gc_debug_log("%p is already forwarded to %p\n", object, object->object_fields[0]);
+      gc_debug_log("%p is already forwarded to %p\n", object,
+                   object->object_fields[0]);
     }
     return object->object_fields[0];
   } else {
@@ -262,10 +284,13 @@ static void* forward(void* raw_object, size_t* memory_copied) {
   Prerequirement: scan == next (all data already forwarded)
 */
 static size_t flip(void) {
-  gc_debug_log("flipping\n"); 
+  gc_debug_log("flipping\n");
 #ifdef STELLA_GC_DEBUG
   print_gc_roots();
-#endif  
+#endif
+  current_allocated_objects = 0;
+  current_allocated_bytes = 0;
+
 
   void* t = to_space;
   to_space = from_space;
@@ -285,10 +310,10 @@ static size_t flip(void) {
     total_memory_copied += memory_copied;
   }
 
-gc_debug_log("after flip\n"); 
-#ifdef STELLA_GC_DEBUG 
+  gc_debug_log("after flip\n");
+#ifdef STELLA_GC_DEBUG
   print_gc_state();
-#endif  
+#endif
 
   return total_memory_copied;
 }
@@ -316,7 +341,7 @@ static size_t deep_forward(stella_object* object) {
   Can be utilized in non-iterative gc or in special cases in current gc.
   Returns amount of memory, copied during operation
 */
-static size_t force_copy_all(void) {
+size_t gc_force_copy_all(void) {
   size_t total_memory_copied = 0;
 
   while (diff_void(next, scan) > 0) {
@@ -366,8 +391,8 @@ static void print_object(stella_object* object, const char* prefix) {
   int field_count = STELLA_OBJECT_HEADER_FIELD_COUNT(object->object_header);
   enum TAG tag = STELLA_OBJECT_HEADER_FIELD_COUNT(object->object_header);
 
-  printf("%s%p: STELLA OBJECT of %d fields WITH tag %s of value ", prefix, object,
-         field_count, stella_tag_to_string(tag));
+  printf("%s%p: STELLA OBJECT of %d fields WITH tag %s of value ", prefix,
+         object, field_count, stella_tag_to_string(tag));
   // print_stella_object(object);
   printf("\n");
 
@@ -450,7 +475,7 @@ void* gc_alloc(size_t size_in_bytes) {
     */
 
     if (scan != next) {
-      force_copy_all();
+      gc_force_copy_all();
       /** Now all alive data is inside to-space, so we can flip */
     }
 
@@ -463,8 +488,14 @@ void* gc_alloc(size_t size_in_bytes) {
 
   total_allocated_bytes += size_in_bytes;
   total_allocated_objects += 1;
-  max_allocated_bytes = total_allocated_bytes;
-  max_allocated_objects = total_allocated_objects;
+  current_allocated_bytes += size_in_bytes;
+  current_allocated_objects += 1;
+  max_allocated_bytes = max_allocated_bytes > current_allocated_bytes
+                            ? max_allocated_bytes
+                            : current_allocated_bytes;
+  max_allocated_objects = max_allocated_objects > current_allocated_objects
+                              ? max_allocated_objects
+                              : current_allocated_objects;
 
   limit = advance_void(limit, -((ptrdiff_t)size_in_bytes));
   memset(limit, 0, size_in_bytes);
@@ -493,7 +524,6 @@ void print_gc_alloc_stats() {
   printf("Max GC roots stack size: %'d roots\n", gc_roots_max_size);
 }
 
-
 static void print_gc_state_variables(void) {
   printf("TO-SPACE: %p\n", to_space);
   printf("FROM-SPACE: %p\n", from_space);
@@ -501,7 +531,7 @@ static void print_gc_state_variables(void) {
          diff_void(next, to_space));
   printf("SCAN pointer: %p\n", scan);
   printf("LIMIT pointer: %p (NEXT + %td)\n", limit, diff_void(limit, next));
-} 
+}
 
 void print_gc_state(void) {
   print_gc_state_variables();
@@ -524,7 +554,8 @@ void gc_read_barrier(void* raw_object, int field_index) {
 
   if (belongs_to(object->object_fields[field_index], from_space)) {
     size_t memory_copied = 0;
-    object->object_fields[field_index] = forward(object->object_fields[field_index], &memory_copied);
+    object->object_fields[field_index] =
+        forward(object->object_fields[field_index], &memory_copied);
   }
 
   total_reads += 1;

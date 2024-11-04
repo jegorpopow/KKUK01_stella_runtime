@@ -1,31 +1,39 @@
-#include <stdlib.h>
-#include <stdio.h>
-
 #include "runtime.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include "gc.h"
 
 int total_allocated_fields = 0;
 
-stella_object the_ZERO = { .object_header = TAG_ZERO, .object_fields = {} } ;
-stella_object the_UNIT = { .object_header = TAG_UNIT, .object_fields = {} } ;
-stella_object the_EMPTY = { .object_header = TAG_EMPTY, .object_fields = {} } ;
-stella_object the_EMPTY_TUPLE = { .object_header = TAG_TUPLE, .object_fields = {} } ;
-stella_object the_FALSE = { .object_header = TAG_FALSE, .object_fields = {} } ;
-stella_object the_TRUE = { .object_header = TAG_TRUE, .object_fields = {} } ;
-const int FIELD_COUNT_MASK = (1 << 8) - (1 << 4) ;
-const int TAG_MASK         = (1 << 4) - (1 << 0) ;
+stella_object the_ZERO = {.object_header = TAG_ZERO, .object_fields = {}};
+stella_object the_UNIT = {.object_header = TAG_UNIT, .object_fields = {}};
+stella_object the_EMPTY = {.object_header = TAG_EMPTY, .object_fields = {}};
+stella_object the_EMPTY_TUPLE = {.object_header = TAG_TUPLE,
+                                 .object_fields = {}};
+stella_object the_FALSE = {.object_header = TAG_FALSE, .object_fields = {}};
+stella_object the_TRUE = {.object_header = TAG_TRUE, .object_fields = {}};
+const int FIELD_COUNT_MASK = (1 << 8) - (1 << 4);
+const int TAG_MASK = (1 << 4) - (1 << 0);
 
 stella_object* alloc_stella_object(enum TAG tag, int fields_count) {
-  stella_object *obj;
+  stella_object* obj;
   total_allocated_fields += fields_count;
   switch (tag) {
     // do not allocate constant objects
-    case TAG_ZERO: return &the_ZERO;
-    case TAG_FALSE: return &the_FALSE;
-    case TAG_TRUE: return &the_TRUE;
-    case TAG_UNIT: return &the_UNIT;
-    case TAG_EMPTY: return &the_EMPTY;
-    case TAG_TUPLE: if (fields_count == 0) { return &the_EMPTY_TUPLE; }
+    case TAG_ZERO:
+      return &the_ZERO;
+    case TAG_FALSE:
+      return &the_FALSE;
+    case TAG_TRUE:
+      return &the_TRUE;
+    case TAG_UNIT:
+      return &the_UNIT;
+    case TAG_EMPTY:
+      return &the_EMPTY;
+    case TAG_TUPLE:
+      if (fields_count == 0) {
+        return &the_EMPTY_TUPLE;
+      }
     // allocate an object with at least one field (or an unknown tag)
     default:
       obj = gc_alloc(sizeof(stella_object) + fields_count * sizeof(void*));
@@ -35,9 +43,9 @@ stella_object* alloc_stella_object(enum TAG tag, int fields_count) {
   }
 }
 
-stella_object *nat_to_stella_object(int n) {
+stella_object* nat_to_stella_object(int n) {
   stella_object *result, *x;
-  gc_push_root((void*)&result);    // it is sufficient to push only result
+  gc_push_root((void*)&result);  // it is sufficient to push only result
   result = &the_ZERO;
   for (int i = n; i > 0; i--) {
     x = alloc_stella_object(TAG_SUCC, 1);
@@ -62,13 +70,20 @@ int stella_object_to_nat(stella_object* obj) {
   return result;
 }
 
-stella_object* stella_object_nat_rec(stella_object* n, stella_object* z, stella_object* f) {
-  stella_object *g;
+stella_object* stella_object_nat_rec(stella_object* n,
+                                     stella_object* z,
+                                     stella_object* f) {
+  stella_object* g;
 #ifdef STELLA_DEBUG
   printf("[debug] call Nat::rec(");
-  printf("n = "); print_stella_object(n); printf(", ");
-  printf("z = "); print_stella_object(z); printf(", ");
-  printf("f = "); print_stella_object(f);
+  printf("n = ");
+  print_stella_object(n);
+  printf(", ");
+  printf("z = ");
+  print_stella_object(z);
+  printf(", ");
+  printf("f = ");
+  print_stella_object(f);
   printf(")\n");
 #endif
   gc_push_root((void**)&n);
@@ -138,7 +153,9 @@ void print_stella_object(stella_object* obj) {
       printf("{");
       for (int i = 0; i < fields_count; i++) {
         print_stella_object(obj->object_fields[i]);
-        if (i < fields_count - 1) { printf(", "); }
+        if (i < fields_count - 1) {
+          printf(", ");
+        }
       }
       printf("}");  // TODO: pretty print a tuple
       return;
