@@ -56,6 +56,8 @@ static void gc_debug_log_state(void) {
 #define MAX_ALLOC_SIZE (4 * 1024 * 1024)
 #endif
 
+#define MAX_PRINTABLE_SPACE_SIZE (8 * 1024)
+
 #define GC_INTERNAL_SPACE_SIZE MAX_ALLOC_SIZE
 
 char first_buffer[GC_INTERNAL_SPACE_SIZE] = {};
@@ -423,6 +425,10 @@ static void print_to_space(void) {
   printf("to-space:\n");
 
   void* current = to_space;
+
+  if (GC_INTERNAL_SPACE_SIZE > MAX_PRINTABLE_SPACE_SIZE) {
+    return;
+  }
 
   while (diff_void(next, current) > 0) {
     stella_object* object = (stella_object*)current;

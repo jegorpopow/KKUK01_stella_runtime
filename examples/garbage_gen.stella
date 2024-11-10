@@ -1,0 +1,19 @@
+language core;
+
+extend with #natural-literals, 
+            #let-bindings,
+            #multiparameter-functions;
+
+fn produce_garbage(n : Nat) -> Nat {
+    return let garbage = 5 in n;
+}
+
+fn produce_a_lot_of_garbage(n : Nat) -> Nat {
+    return let two = 2 in Nat::rec(n, two, fn(m : Nat) {
+        return fn(r : Nat) { return produce_garbage(r);}
+    });
+} 
+
+fn main(n : Nat) -> Nat {
+    return produce_a_lot_of_garbage(n);
+}
